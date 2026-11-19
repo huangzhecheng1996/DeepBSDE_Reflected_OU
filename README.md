@@ -51,8 +51,8 @@ DeepBSDE_Reflected_OU/
    Install the required dependencies via `requirements.txt`. All neural network training experiments were conducted on Google Colab using an NVIDIA L4 GPU, where the Deep BSDE solver converges within 1 to 2 hours depending on parameter settings.
 2. **Execution Pipeline**
 The standard training workflow consists of two stages:
-- **Stage 1 (LSQMC Pre-estimation of SRE Initial Value $`\tilde{P}_{\pm}(0)`$)**: Simulate a large batch of reflected factor paths using `StateDependentAssetModel_GPU` and run backward polynomial ridge regression (`ConstrainedLnSRE_LSQMC_P_Plus` / `P_Minus`) from $`\tilde{P}_{\pm}(T)=0`$ to obtain a preliminary scalar estimate for the log-SRE initial value $`\tilde{P}_{\pm}(0)`$.
-- **Stage 2 (Two-Phase Online Deep BSDE Training)**: Initialize the solver's learnable scalar parameter $`\tilde{P}_{\pm}(0)`$ (`self.P0`) at the LSQMC estimate. In **Phase 1**, freeze $`\tilde{P}_{\pm}(0)`$ and train only `LambdaNetwork` to approximate the adjoint process $`\tilde{\Lambda}_{\pm,t}`$. In **Phase 2**, unfreeze $`\tilde{P}_{\pm}(0)`$ and jointly optimize the scalar initial value $`\tilde{P}_{\pm}(0)`$ alongside the parameters of `LambdaNetwork` to match the terminal condition $`\tilde{P}_{\pm}(T)=0`$.
+- **Stage 1 (LSQMC Pre-estimation of SRE Initial Value $`\check{P}_{\pm}(0)`$)**: Simulate a large batch of reflected factor paths using `StateDependentAssetModel_GPU` and run backward polynomial ridge regression (`ConstrainedLnSRE_LSQMC_P_Plus` / `P_Minus`) from $`\check{P}_{\pm}(T)=0`$ to obtain a preliminary scalar estimate for the log-SRE initial value $`\check{P}_{\pm}(0)`$.
+- **Stage 2 (Two-Phase Online Deep BSDE Training)**: Initialize the solver's learnable scalar parameter $`\check{P}_{\pm}(0)`$ (`self.P0`) at the LSQMC estimate. In **Phase 1**, freeze $`\check{P}_{\pm}(0)`$ and train only `LambdaNetwork` to approximate the adjoint process $`\check{\Lambda}_{\pm,t}`$. In **Phase 2**, unfreeze $`\check{P}_{\pm}(0)`$ and jointly optimize the scalar initial value $`\check{P}_{\pm}(0)`$ alongside the parameters of `LambdaNetwork` to match the terminal condition $`\check{P}_{\pm}(T)=0`$.
 
 
 
@@ -88,11 +88,11 @@ In this synthetic market, the 25 latent factors are structurally partitioned int
 
 ### 2. Training Dynamics (`02_training_history.ipynb`)
 
-This notebook reproduces the training history plots for the logarithmically transformed equations $`\tilde{P}_+`$ and $`\tilde{P}_-`$ reported in Figure 2 of the paper.
+This notebook reproduces the training history plots for the logarithmically transformed equations $`\check{P}_+`$ and $`\check{P}_-`$ reported in Figure 2 of the paper.
 
 ### 3. Out-of-Sample Evaluation (`03_oos_evaluation.ipynb`)
 
-This notebook loads the trained checkpoints and reproduces the out-of-sample trajectory evolution plots (Figure 3) and terminal statistics (Table 1) for $`\tilde{P}_+`$ and $`\tilde{P}_-`$ reported in the paper.
+This notebook loads the trained checkpoints and reproduces the out-of-sample trajectory evolution plots (Figure 3) and terminal statistics (Table 1) for $`\check{P}_+`$ and $`\check{P}_-`$ reported in the paper.
 
 
 
