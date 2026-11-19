@@ -29,19 +29,19 @@ DeepBSDE_Reflected_OU/
 
 ## Core Modules
 
-* **`StateDependentAssetModel_GPU.py`**: GPU-accelerated Monte Carlo simulator for the reflected Ornstein-Uhlenbeck factor process and state-dependent multi-asset dynamics, providing specular boundary reflection, Skorokhod reflection increments, and trajectory diagnostics.
+- **`StateDependentAssetModel_GPU.py`**: GPU-accelerated Monte Carlo simulator for the reflected Ornstein-Uhlenbeck factor process and state-dependent multi-asset dynamics, providing specular boundary reflection, Skorokhod reflection increments, and trajectory diagnostics.
 
 
-* **`LambdaNetwork.py`**: Time-step decoupled neural network architecture for approximating the BSDE martingale integrand.
+- **`LambdaNetwork.py`**: Time-step decoupled neural network architecture for approximating the BSDE martingale integrand.
 
 
-* **`OnlineDeepLnSRESolver.py`**: Online Deep BSDE training and evaluation engine incorporating geometry-aware Neumann boundary projection, Skorokhod local-time compensation, and multi-stage optimization.
+- **`OnlineDeepLnSRESolver.py`**: Online Deep BSDE training and evaluation engine incorporating geometry-aware Neumann boundary projection, Skorokhod local-time compensation, and multi-stage optimization.
 
 
-* **`lnSRE_Equation_plus.py` / `lnSRE_Equation_minus.py`**: Drift generator evaluators for the positive and negative log-transformed ESREs, featuring a batched GPU FISTA solver for the cone-constrained Hamiltonian.
+- **`lnSRE_Equation_plus.py` / `lnSRE_Equation_minus.py`**: Drift generator evaluators for the positive and negative log-transformed ESREs, featuring a batched GPU FISTA solver for the cone-constrained Hamiltonian.
 
 
-* **`ConstrainedLnSRE_LSQMC_P_Plus.py` / `ConstrainedLnSRE_LSQMC_P_Minus.py`**: Backward Least-Squares Monte Carlo (LSQMC) estimators via polynomial ridge regression, providing fast initial value anchors for warm-starting the Deep BSDE solver.
+- **`ConstrainedLnSRE_LSQMC_P_Plus.py` / `ConstrainedLnSRE_LSQMC_P_Minus.py`**: Backward Least-Squares Monte Carlo (LSQMC) estimators via polynomial ridge regression, providing fast initial value anchors for warm-starting the Deep BSDE solver.
 
 
 
@@ -51,8 +51,8 @@ DeepBSDE_Reflected_OU/
    Install the required dependencies via `requirements.txt`. All neural network training experiments were conducted on Google Colab using an NVIDIA L4 GPU, where the Deep BSDE solver converges within 1 to 2 hours depending on parameter settings.
 2. **Execution Pipeline**
 The standard training workflow consists of two stages:
-- **Stage 1 (LSQMC Pre-estimation of SRE Initial Value $\check{P}(0)$)**: Simulate a large batch of reflected factor paths using `StateDependentAssetModel_GPU` and run backward polynomial ridge regression (`ConstrainedLnSRE_LSQMC_P_Plus` / `P_Minus`) from $\check{P}(T)=0$ to obtain a preliminary scalar estimate for the log-SRE initial value $\check{P}(0)$.
-- **Stage 2 (Two-Phase Online Deep BSDE Training)**: Initialize the solver's learnable scalar parameter $\check{P}(0)$ (`self.P0`) at the LSQMC estimate. In **Phase 1**, freeze $\check{P}(0)$ and train only `LambdaNetwork` to approximate the adjoint process $\check{\Lambda}_t$. In **Phase 2**, unfreeze $\check{P}(0)$ and jointly optimize the scalar initial value $\check{P}(0)$ alongside the parameters of `LambdaNetwork` to match the terminal condition $\check{P}(T)=0$.
+- **Stage 1 (LSQMC Pre-estimation of SRE Initial Value $\tilde{P}_{\pm}(0)$)**: Simulate a large batch of reflected factor paths using `StateDependentAssetModel_GPU` and run backward polynomial ridge regression (`ConstrainedLnSRE_LSQMC_P_Plus` / `P_Minus`) from $\tilde{P}_{\pm}(T)=0$ to obtain a preliminary scalar estimate for the log-SRE initial value $\tilde{P}_{\pm}(0)$.
+- **Stage 2 (Two-Phase Online Deep BSDE Training)**: Initialize the solver's learnable scalar parameter $\tilde{P}_{\pm}(0)$ (`self.P0`) at the LSQMC estimate. In **Phase 1**, freeze $\tilde{P}_{\pm}(0)$ and train only `LambdaNetwork` to approximate the adjoint process $\tilde{\Lambda}_{\pm,t}$. In **Phase 2**, unfreeze $\tilde{P}_{\pm}(0)$ and jointly optimize the scalar initial value $\tilde{P}_{\pm}(0)$ alongside the parameters of `LambdaNetwork` to match the terminal condition $\tilde{P}_{\pm}(T)=0$.
 
 
 
@@ -88,11 +88,11 @@ In this synthetic market, the 25 latent factors are structurally partitioned int
 
 ### 2. Training Dynamics (`02_training_history.ipynb`)
 
-This notebook reproduces the training history plots for the logarithmically transformed equations $\check{P}^+$ and $\check{P}^-$ reported in Figure 2 of the paper.
+This notebook reproduces the training history plots for the logarithmically transformed equations $\tilde{P}_+$ and $\tilde{P}_-$ reported in Figure 2 of the paper.
 
 ### 3. Out-of-Sample Evaluation (`03_oos_evaluation.ipynb`)
 
-This notebook loads the trained checkpoints and reproduces the out-of-sample trajectory evolution plots (Figure 3) and terminal statistics (Table 1) for $\check{P}^+$ and $\check{P}^-$ reported in the paper.
+This notebook loads the trained checkpoints and reproduces the out-of-sample trajectory evolution plots (Figure 3) and terminal statistics (Table 1) for $\tilde{P}_+$ and $\tilde{P}_-$ reported in the paper.
 
 
 
