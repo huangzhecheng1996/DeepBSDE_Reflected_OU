@@ -27,7 +27,6 @@ pgd_lr_core = 0.05
 
 # Network architecture and boundary penalty settings
 nn_hidden_layers = [64, 64]
-lambda_wall_penalty = 5.0
 phi_threshold_ratio = 0.03
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -318,7 +317,6 @@ if __name__ == "__main__":
         initial_p0=estimated_check_p0,
         p_lower=estimated_p_c0 * 0.5,
         p_upper=estimated_p_c0 * 2,
-        lambda_wall=lambda_wall_penalty,
         phi_threshold=phi_threshold_ratio * radius
     )
 
