@@ -13,7 +13,7 @@ class OnlineDeepLnSRESolver(nn.Module):
 
     def __init__(self, params, lambda_net, sre_equation, dt=1/252, T=1.0, device='cpu',
                  initial_p0=0.0, p_lower=1.0, p_upper=200.0,
-                 lambda_wall=100.0, phi_threshold=None):
+                 phi_threshold=None):
         super(OnlineDeepLnSRESolver, self).__init__()
 
         self.params = params
@@ -50,12 +50,11 @@ class OnlineDeepLnSRESolver(nn.Module):
         Sigma_0 = torch.matmul(self.sigma_0, self.sigma_0.t())
         self.pseudo_inv_sigma_0_T = torch.matmul(self.sigma_0.t(), torch.linalg.pinv(Sigma_0)).t()
 
-        self.lambda_wall = lambda_wall
         self.phi_threshold = phi_threshold if phi_threshold is not None else 0.1 * self.radius
 
         self.current_epoch = 0
         self.history = {
-            'epoch': [], 'loss': [], 'penalty_loss': [], 'yt_mean': [], 'yt_std': [],
+            'epoch': [], 'loss': [], 'yt_mean': [], 'yt_std': [],
             'grad_norm_lambda': [], 'grad_norm_p0': [], 'p0': [],
             'learning_rate_lambda': [], 'learning_rate_p0': [],
             'freeze_p0': [], 'freeze_lambda': []
@@ -68,7 +67,6 @@ class OnlineDeepLnSRESolver(nn.Module):
         print("-" * 75)
         print(f" • Initial log value check_P(0)         : {initial_p0:+11.6f}")
         print(f" • Initial physical value P(0)          : {math.exp(initial_p0):10.6f}")
-        print(f" • lambda_wall (boundary penalty weight): {self.lambda_wall}")
         print(f" • phi_threshold (projection threshold) : {self.phi_threshold:.4f}")
         print("=" * 75 + "\n")
 
@@ -90,8 +88,7 @@ class OnlineDeepLnSRESolver(nn.Module):
         else:
             Lambda_proj = Lambda_proj_active
 
-        step_penalty = torch.sum(correction ** 2, dim=1)
-        return Lambda_proj, step_penalty
+        return Lambda_proj
 
     def _compute_physical_prior_rho(self, V_t):
         """Compute state-dependent market price of risk prior rho(V_t)."""
@@ -116,7 +113,6 @@ class OnlineDeepLnSRESolver(nn.Module):
         # Call step-0 sub-network
         check_Lambda_raw = self.lambda_net(0, V_0, rho_0)
 
-        total_penalty = torch.zeros(batch_size, dtype=torch.float64, device=self.device)
         total_kkt_res = torch.zeros(batch_size, dtype=torch.float64, device=self.device)
 
         for i in range(self.N_steps):
@@ -124,8 +120,7 @@ class OnlineDeepLnSRESolver(nn.Module):
             dW_curr = dW_paths[:, i, :]
             delta_xi_curr = Xi_paths[:, i, :] # Current step boundary reflection displacement
 
-            check_Lambda_proj, step_penalty = self._geometry_aware_projection(check_Lambda_raw, V_curr)
-            total_penalty += step_penalty
+            check_Lambda_proj = self._geometry_aware_projection(check_Lambda_raw, V_curr)
 
             if check_Lambda_proj.shape[1] < dW_curr.shape[1]:
                 zeros = torch.zeros(check_Lambda_proj.shape[0], dW_curr.shape[1] - check_Lambda_proj.shape[1],
@@ -163,11 +158,11 @@ class OnlineDeepLnSRESolver(nn.Module):
                 check_Lambda_raw = self.lambda_net(i + 1, V_next, rho_next)
 
         self._current_batch_kkt = torch.mean(total_kkt_res).item()
-        return check_P_t, total_penalty
+        return check_P_t
 
     def train_model(self, env_generator, v0, additional_epochs=1200,
                     lr_lambda=1e-3, lr_p0=5e-2,
-                    freeze_p0=False, freeze_lambda=False, std_penalty_multiplier=10,
+                    freeze_p0=False, freeze_lambda=False, std_penalty_multiplier=1,
                     reset_optim_state=True, patience=30):
 
         self.P0.requires_grad = not freeze_p0
@@ -226,7 +221,7 @@ class OnlineDeepLnSRESolver(nn.Module):
         print("\n" + "=" * 125)
         print(f" Starting Log-Space Training [Skorokhod Compensated] | Mode: {status_str} | VarWeight: {std_penalty_multiplier} | Target Epoch: {target_epoch}")
         print("-" * 125)
-        print(f"{'Epoch':<7} | {'TotalLoss':<11} | {'Train_loss':<11} |{'BSDE_Loss':<11} | {'WallPen':<9} | "
+        print(f"{'Epoch':<7} | {'TotalLoss':<11} | {'Train_loss':<11} |{'BSDE_Loss':<11} | "
               f"{'KKT_Err':<9} | "
               f"{'P_T Mean':<9} | {'P_T Std':<9} | {'Grad_Lam':<9} | {'Grad_P0':<9} | "
               f"{'LR_Lambda':<10} | {'P(0)':<10}")
@@ -255,7 +250,7 @@ class OnlineDeepLnSRESolver(nn.Module):
                 optimizer.zero_grad()
 
                 # Forward pass with boundary reflection displacement
-                check_P_T_pred, path_penalties = self.forward_simulation(V_batch, dW_batch, Xi_batch)
+                check_P_T_pred = self.forward_simulation(V_batch, dW_batch, Xi_batch)
 
                 kkt_err = getattr(self, '_current_batch_kkt', 0.0)
 
@@ -263,9 +258,8 @@ class OnlineDeepLnSRESolver(nn.Module):
                 check_P_T_var = torch.var(check_P_T_pred)
 
                 bsde_loss_unweighted = (check_P_T_mean - 0.0)**2 + check_P_T_var
-                penalty_loss = self.lambda_wall * torch.mean(path_penalties)
 
-                train_loss = (check_P_T_mean - 0.0)**2 + std_penalty_multiplier * check_P_T_var + penalty_loss
+                train_loss = (check_P_T_mean - 0.0)**2 + std_penalty_multiplier * check_P_T_var
 
                 train_loss.backward()
 
@@ -312,7 +306,7 @@ class OnlineDeepLnSRESolver(nn.Module):
                         dW_eval_batch = dW_eval.detach().permute(1, 0, 2).contiguous().to(dtype=torch.float64)
                         Xi_eval_batch = Xi_eval.detach().permute(1, 0, 2).contiguous().to(dtype=torch.float64)
 
-                        check_P_T_eval, _ = self.forward_simulation(V_eval_batch, dW_eval_batch, Xi_eval_batch)
+                        check_P_T_eval = self.forward_simulation(V_eval_batch, dW_eval_batch, Xi_eval_batch)
                         mean_check_p = check_P_T_eval.mean().item()
                         std_check_p = check_P_T_eval.std().item()
 
@@ -323,7 +317,6 @@ class OnlineDeepLnSRESolver(nn.Module):
 
                     self.history['epoch'].append(epoch)
                     self.history['loss'].append(recorded_loss)
-                    self.history['penalty_loss'].append(penalty_loss.item())
                     self.history['yt_mean'].append(mean_check_p)
                     self.history['yt_std'].append(std_check_p)
                     self.history['grad_norm_lambda'].append(grad_norm_lambda)
@@ -335,7 +328,7 @@ class OnlineDeepLnSRESolver(nn.Module):
                     self.history['freeze_lambda'].append(freeze_lambda)
 
                     if len(loss_buffer) >= 10:
-                        print(f"{epoch:<7d} | {recorded_loss:<11.4e} | {train_loss.item():<11.4e} |{bsde_loss_unweighted.item():<11.4e} | {penalty_loss.item():<9.2e} | "
+                        print(f"{epoch:<7d} | {recorded_loss:<11.4e} | {train_loss.item():<11.4e} |{bsde_loss_unweighted.item():<11.4e} | "
                               f"{kkt_err:<9.2e} | "
                               f"{mean_check_p:<+9.5f} | {std_check_p:<9.5f} | {grad_norm_lambda:<9.2e} | {grad_norm_p0:<9.2e} | "
                               f"{current_lr_lambda:<10.2e} | {math.exp(current_check_p0):<10.6f}")
