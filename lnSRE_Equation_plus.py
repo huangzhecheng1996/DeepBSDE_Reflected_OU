@@ -4,16 +4,14 @@ import math
 
 class lnSRE_Equation_plus(nn.Module):
     def __init__(self, params, device='cpu',
-                 pgd_steps=300,           # Default: 300
+                 pgd_steps=500,           # Default: 500
                  pgd_lr_base=0.05,        # Default: 0.05
-                 kkt_tol=1e-3,            # KKT early-stopping tolerance
-                 max_pgd_steps=500):      # Maximum PGD steps safeguard
+                 kkt_tol=1e-3):            # KKT early-stopping tolerance
         super().__init__()
         self.device = device
         self.pgd_steps = int(pgd_steps)
         self.pgd_lr_base = float(pgd_lr_base)
         self.kkt_tol = float(kkt_tol)
-        self.max_pgd_steps = int(max_pgd_steps)
 
         def to_t(val):
             return torch.tensor(val, device=self.device, dtype=torch.float64)
@@ -78,7 +76,7 @@ class lnSRE_Equation_plus(nn.Module):
             t_fista = 1.0
 
             actual_steps = 0
-            for step in range(self.max_pgd_steps):
+            for step in range(self.pgd_steps):
                 grad = 2.0 * (torch.bmm(Sigma_ng, y.unsqueeze(-1)).squeeze(-1) + theta_ng)
                 pi_next = torch.relu(y - lr * grad)
                 actual_steps += 1
